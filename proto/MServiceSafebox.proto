@@ -1,0 +1,533 @@
+// Copyright 2019 Demian Harvill
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package org.gaterace.mservice.safebox;
+option csharp_namespace = "MServiceSafebox";
+option go_package = "mservicesafebox";
+
+import "DmlExtension.proto";
+
+
+
+// service methods for MService vault
+service MServiceSafebox {
+    // initialize service with shared secret
+    rpc add_shared_secret (AddSharedSecretRequest) returns (AddSharedSecretResponse);
+    // remocve shared secrets
+    rpc clear_shared_secrets (ClearSharedSecretsRequest) returns (ClearSharedSecretsResponse);
+    // create a new data key
+    rpc create_data_key (CreateDataKeyRequest) returns (CreateDataKeyResponse);
+    // delete a data key
+    rpc delete_data_key (DeleteDataKeyRequest) returns (DeleteDataKeyResponse);
+    // get a data key
+    rpc get_data_key (GetDataKeyRequest) returns (GetDataKeyResponse);
+    // get a data key by id
+    rpc get_data_key_by_id (GetDataKeyByIdRequest) returns (GetDataKeyByIdResponse);
+    // get a data keys by account_name
+    rpc get_data_keys_by_account (GetDataKeysByAccountRequest) returns (GetDataKeysByAccountResponse);
+    // get a decrypted version of data key
+    rpc get_decrypted_data_key (GetDecryptedDataKeyRequest) returns (GetDecryptedDataKeyResponse);
+    // create a new key node, encrypting value creating tree node if necessary
+    rpc create_key_node (CreateKeyNodeRequest) returns (CreateKeyNodeResponse);
+    // enable a key node
+    rpc enable_key_node (EnableKeyNodeRequest) returns (EnableKeyNodeResponse);
+    // disable a key node
+    rpc disable_key_node (DisableKeyNodeRequest) returns (DisableKeyNodeResponse);
+    // re-encrypt a key node
+    rpc re_encrypt_key_node (ReEncryptKeyNodeRequest) returns (ReEncryptKeyNodeResponse);
+    // copy a  key node to new path
+    rpc copy_key_node (CopyKeyNodeRequest) returns (CopyKeyNodeResponse);
+    // delete a  key node
+    rpc delete_key_node (DeleteKeyNodeRequest) returns (DeleteKeyNodeResponse);
+    // get a key node by node and path
+    rpc get_key_node (GetKeyNodeRequest) returns (GetKeyNodeResponse);
+    // get a key node by id
+    rpc get_key_node_by_id (GetKeyNodeByIdRequest) returns (GetKeyNodeByIdResponse);
+    // get a list of key nodes by path
+    rpc get_key_node_by_path (GetKeyNodeByPathRequest) returns (GetKeyNodeByPathResponse);
+    // get a decrypted version of key node
+    rpc get_decrypted_key_node (GetDecryptedKeyNodeRequest) returns (GetDecryptedKeyNodeResponse);
+  
+}
+
+
+
+// MService tree node entity
+message TreeNode {
+    // unique identifier for an MService tree node
+    int64 node_id = 1;
+    // creation date
+    dml.DateTime created = 2;
+    // modification date
+    dml.DateTime modified = 3;
+    // deletion date
+    dml.DateTime deleted = 4;
+    // has record been deleted?
+    bool is_deleted = 5;
+    // version of this record
+    int32 version = 6;
+    // account owning this tree node and associated key nodes
+    string account_name = 7;
+    // tree node path, with forward slash separators
+    string node_path = 8;
+
+}
+
+// MService data key entity
+message DataKey {
+    // unique identifier for an MService data key
+    int64 data_key_id = 1;
+    // creation date
+    dml.DateTime created = 2;
+    // modification date
+    dml.DateTime modified = 3;
+    // deletion date
+    dml.DateTime deleted = 4;
+    // has record been deleted?
+    bool is_deleted = 5;
+    // version of this record
+    int32 version = 6;
+    // account owning this tree node and associated key nodes
+    string account_name = 7;
+    // data key name
+    string data_key_name = 8;
+    // data key description
+    string data_key_description = 9;
+    // encrypted data key
+    bytes data_key = 10;
+
+}
+
+// MService key node entity
+message KeyNode {
+    // unique identifier for an MService key node
+    int64 key_id = 1;
+    // creation date
+    dml.DateTime created = 2;
+    // modification date
+    dml.DateTime modified = 3;
+    // deletion date
+    dml.DateTime deleted = 4;
+    // has record been deleted?
+    bool is_deleted = 5;
+    // version of this record
+    int32 version = 6;
+    // unique identifier for an MService tree node
+    int64 node_id = 7;
+    // unique identifier for an MService data key
+    int64 data_key_id = 8;
+    // is key node enabled?
+    bool is_enabled = 9;
+    // key node key name
+    string key_name = 10;
+    // key node description
+    string key_description = 11;
+    // key node value, encrypted if data_key_id non zero
+    bytes key_value = 12;
+    // tree node path, with forward slash separators
+    string node_path = 13;
+
+}
+
+// request parameters for method add_shared_secret
+message AddSharedSecretRequest {
+    // shared secret
+    string shared_secret = 1;
+
+}
+
+// response parameters for method add_shared_secret
+message AddSharedSecretResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+
+}
+
+// request parameters for method clear_shared_secrets
+message ClearSharedSecretsRequest {
+    // placeholder param to avoid empty message
+    int32 dummy_param = 1;
+
+}
+
+// response parameters for method clear_shared_secrets
+message ClearSharedSecretsResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+
+}
+
+// request parameters for method create_data_key
+message CreateDataKeyRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // data key name
+    string data_key_name = 2;
+    // data key description
+    string data_key_description = 3;
+
+}
+
+// response parameters for method create_data_key
+message CreateDataKeyResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+    // unique identifier for an MService data key
+    int64 data_key_id = 4;
+
+}
+
+// request parameters for method delete_data_key
+message DeleteDataKeyRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService data key
+    int64 data_key_id = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// response parameters for method delete_data_key
+message DeleteDataKeyResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// request parameters for method get_data_key
+message GetDataKeyRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // data key name
+    string data_key_name = 2;
+
+}
+
+// response parameters for method get_data_key
+message GetDataKeyResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // data key object
+    DataKey datakey = 3;
+
+}
+
+// request parameters for method get_data_key_by_id
+message GetDataKeyByIdRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService data key
+    int64 data_key_id = 2;
+
+}
+
+// response parameters for method get_data_key_by_id
+message GetDataKeyByIdResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // data key object
+    DataKey datakey = 3;
+
+}
+
+// request parameters for method get_data_keys_by_account
+message GetDataKeysByAccountRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+
+}
+
+// response parameters for method get_data_keys_by_account
+message GetDataKeysByAccountResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // list of data key objects
+    repeated DataKey datakeys = 3;
+
+}
+
+// request parameters for method get_decrypted_data_key
+message GetDecryptedDataKeyRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // data key name
+    string data_key_name = 2;
+
+}
+
+// response parameters for method get_decrypted_data_key
+message GetDecryptedDataKeyResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // decrypted data key
+    bytes decrypted_data_key = 3;
+
+}
+
+// request parameters for method create_key_node
+message CreateKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // tree node path, with forward slash separators
+    string node_path = 2;
+    // unique identifier for an MService data key
+    int64 data_key_id = 3;
+    // is key node enabled?
+    bool is_enabled = 4;
+    // key node key name
+    string key_name = 5;
+    // key node description
+    string key_description = 6;
+    // key node value, encrypted if data_key_id non zero
+    bytes key_value = 7;
+
+}
+
+// response parameters for method create_key_node
+message CreateKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+    // unique identifier for an MService key node
+    int64 key_id = 4;
+
+}
+
+// request parameters for method enable_key_node
+message EnableKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// response parameters for method enable_key_node
+message EnableKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// request parameters for method disable_key_node
+message DisableKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// response parameters for method disable_key_node
+message DisableKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// request parameters for method re_encrypt_key_node
+message ReEncryptKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+    // version of this record
+    int32 version = 3;
+    // unique identifier for an MService data key
+    int64 data_key_id = 4;
+
+}
+
+// response parameters for method re_encrypt_key_node
+message ReEncryptKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// request parameters for method copy_key_node
+message CopyKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+    // version of this record
+    int32 version = 3;
+    // tree node path, with forward slash separators
+    string node_path = 4;
+
+}
+
+// response parameters for method copy_key_node
+message CopyKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+    // key node id after copy
+    int64 copied_key_id = 4;
+
+}
+
+// request parameters for method delete_key_node
+message DeleteKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// response parameters for method delete_key_node
+message DeleteKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // version of this record
+    int32 version = 3;
+
+}
+
+// request parameters for method get_key_node
+message GetKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // tree node path, with forward slash separators
+    string node_path = 2;
+    // key node key name
+    string key_name = 3;
+
+}
+
+// response parameters for method get_key_node
+message GetKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // key node object
+    KeyNode keynode = 3;
+
+}
+
+// request parameters for method get_key_node_by_id
+message GetKeyNodeByIdRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // unique identifier for an MService key node
+    int64 key_id = 2;
+
+}
+
+// response parameters for method get_key_node_by_id
+message GetKeyNodeByIdResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // key node object
+    KeyNode keynode = 3;
+
+}
+
+// request parameters for method get_key_node_by_path
+message GetKeyNodeByPathRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // tree node path, with forward slash separators
+    string node_path = 2;
+
+}
+
+// response parameters for method get_key_node_by_path
+message GetKeyNodeByPathResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // list of key node objects
+    repeated KeyNode keynodes = 3;
+
+}
+
+// request parameters for method get_decrypted_key_node
+message GetDecryptedKeyNodeRequest {
+    // account owning this tree node and associated key nodes
+    string account_name = 1;
+    // tree node path, with forward slash separators
+    string node_path = 2;
+    // key node key name
+    string key_name = 3;
+
+}
+
+// response parameters for method get_decrypted_key_node
+message GetDecryptedKeyNodeResponse {
+    // method result code
+    int32 error_code = 1;
+    // text error message
+    string error_message = 2;
+    // decrypted key node value
+    bytes decrypted_key_value = 3;
+
+}
+
+
+
