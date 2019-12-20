@@ -9,7 +9,7 @@ cert_file: < cert.pem location >
 # location of key  file for TLS
 key_file: < key.pem location >
 # host port for communication
-port: 50051
+port: 50052
 # mysql user for connection
 db_user: myuser
 # mysql user password for connection
