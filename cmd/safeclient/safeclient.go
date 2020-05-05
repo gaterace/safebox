@@ -17,7 +17,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -25,6 +24,8 @@ import (
 	"os/user"
 	"strconv"
 	"strings"
+
+	flag "github.com/juju/gnuflag"
 
 	pb "github.com/gaterace/safebox/pkg/mservicesafebox"
 	"github.com/kylelemons/go-gypsy/yaml"
@@ -38,7 +39,7 @@ import (
 var disable = flag.Bool("disable", false, "disable key node")
 
 func main() {
-	flag.Parse()
+	flag.Parse(true)
 
 	configFilename := "conf.yaml"
 	usr, err := user.Current()
@@ -84,7 +85,7 @@ func main() {
 		fmt.Printf("    %s get_data_key_by_id <data_key_id>\n", prog)
 		fmt.Printf("    %s get_data_keys_by_account \n", prog)
 		fmt.Printf("    %s get_decrypted_data_key <data_key_name>\n", prog)
-		fmt.Printf("    %s create_key_node [-disable] <data_key_id> <key_path> <key_description> <key_value>\n", prog)
+		fmt.Printf("    %s create_key_node [--disable] <data_key_id> <key_path> <key_description> <key_value>\n", prog)
 		fmt.Printf("    %s enable_key_node <key_id>\n", prog)
 		fmt.Printf("    %s disable_key_node <key_id>\n", prog)
 		fmt.Printf("    %s re_encrypt_key_node <key_id> <data_key_id>\n", prog)
