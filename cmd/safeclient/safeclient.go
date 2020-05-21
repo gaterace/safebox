@@ -95,6 +95,7 @@ func main() {
 		fmt.Printf("    %s get_key_node_by_id <key_id>\n", prog)
 		fmt.Printf("    %s get_key_node_by_path <node_path>\n", prog)
 		fmt.Printf("    %s get_decrypted_key_node <key_path>\n", prog)
+		fmt.Printf("    %s get_server_version \n", prog)
 
 		os.Exit(1)
 	}
@@ -234,6 +235,8 @@ func main() {
 			fmt.Println("key_path parameter missing")
 			validParams = false
 		}
+	case "get_server_version":
+		validParams = true
 	default:
 		fmt.Printf("unknown command: %s\n", cmd)
 		validParams = false
@@ -514,6 +517,11 @@ func main() {
 		if err != nil {
 			fmt.Printf("err: %s\n", err)
 		}
+	case "get_server_version":
+		req := pb.GetServerVersionRequest{}
+		req.DummyParam = 1
+		resp, err := client.GetServerVersion(mctx, &req)
+		printResponse(resp, err)
 	default:
 		fmt.Printf("unknown command: %s\n", cmd)
 		os.Exit(1)

@@ -468,3 +468,8 @@ func (s *safeAuth) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecrypted
 
 	return resp, err
 }
+
+// get current server version and uptime - health check
+func (s *safeAuth) GetServerVersion(ctx context.Context, req *pb.GetServerVersionRequest) (*pb.GetServerVersionResponse, error) {
+	return s.safeService.GetServerVersion(ctx, req)
+}

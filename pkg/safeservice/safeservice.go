@@ -22,6 +22,7 @@ import (
 	"log"
 	"regexp"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 
@@ -49,6 +50,7 @@ type safeService struct {
 	minSecretShares int
 	secretShares    int
 	shares          []string
+	startSecs       int64
 	mu              sync.RWMutex
 }
 
@@ -57,6 +59,7 @@ func NewSafeboxService(minSecretShares int, secretShares int) *safeService {
 	svc.minSecretShares = minSecretShares
 	svc.secretShares = secretShares
 	svc.shares = make([]string, 0, secretShares)
+	svc.startSecs = time.Now().Unix()
 
 	return &svc
 }
@@ -1475,4 +1478,16 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 	resp.DecryptedKeyValue = plaintext
 
 	return resp, err
+}
+
+// get current server version and uptime - health check
+func (s *safeService) GetServerVersion(ctx context.Context, req *pb.GetServerVersionRequest) (*pb.GetServerVersionResponse, error) {
+	s.logger.Printf("GetServerVersion called\n")
+	resp := &pb.GetServerVersionResponse{}
+
+	currentSecs := time.Now().Unix()
+	resp.ServerVersion = "v0.9.2"
+	resp.ServerUptime = currentSecs - s.startSecs
+
+	return resp, nil
 }
