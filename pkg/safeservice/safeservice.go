@@ -19,7 +19,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
-	"log"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"regexp"
 	"sync"
 	"time"
@@ -45,7 +46,7 @@ var accountValidator = regexp.MustCompile("^[a-z]{4,10}$")
 var pathValidator = regexp.MustCompile("^([a-z]{1,20}/)+$")
 
 type safeService struct {
-	logger          *log.Logger
+	logger          log.Logger
 	db              *sql.DB
 	minSecretShares int
 	secretShares    int
@@ -64,7 +65,7 @@ func NewSafeboxService(minSecretShares int, secretShares int) *safeService {
 	return &svc
 }
 
-func (s *safeService) SetLogger(logger *log.Logger) {
+func (s *safeService) SetLogger(logger log.Logger) {
 	s.logger = logger
 }
 
@@ -96,8 +97,6 @@ func (s *safeService) getTreeNodeId(accountName string, nodePath string) (int64,
 }
 
 func (s *safeService) GetMasterKey() ([]byte, error) {
-	// TODO
-	// mkey := []byte("O;iO%XUNOozGS,|Y(}@jSuV>ej5uj93(")
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -122,7 +121,6 @@ func (s *safeService) IsInitialized() bool {
 
 // initialize service with shared secret
 func (s *safeService) AddSharedSecret(ctx context.Context, req *pb.AddSharedSecretRequest) (*pb.AddSharedSecretResponse, error) {
-	s.logger.Print("AddSharedSecret called")
 	resp := &pb.AddSharedSecretResponse{}
 	var err error
 
@@ -153,7 +151,6 @@ func (s *safeService) AddSharedSecret(ctx context.Context, req *pb.AddSharedSecr
 
 // remove shared secrets
 func (s *safeService) ClearSharedSecrets(ctx context.Context, req *pb.ClearSharedSecretsRequest) (*pb.ClearSharedSecretsResponse, error) {
-	s.logger.Print("ClearSharedSecrets called")
 	resp := &pb.ClearSharedSecretsResponse{}
 	var err error
 
@@ -167,8 +164,6 @@ func (s *safeService) ClearSharedSecrets(ctx context.Context, req *pb.ClearShare
 
 // create a new data key
 func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRequest) (*pb.CreateDataKeyResponse, error) {
-	s.logger.Printf("CreateDataKey called for %s:%s\n", req.GetAccountName(), req.GetDataKeyName())
-
 	resp := &pb.CreateDataKeyResponse{}
 
 	if !accountValidator.MatchString(req.GetAccountName()) {
@@ -186,7 +181,7 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 	// generate a new key
 	newkey := make([]byte, 32)
 	if _, err := io.ReadFull(rand.Reader, newkey); err != nil {
-		s.logger.Printf("io.ReadFull err: %v", err)
+		level.Error(s.logger).Log("what", "ReadFull", "error", err)
 		resp.ErrorCode = 511
 		resp.ErrorMessage = "unable to generate new aes key"
 		return resp, nil
@@ -194,7 +189,7 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 
 	mkey, err := s.GetMasterKey()
 	if err != nil {
-		s.logger.Printf("cryptutil.GetMasterKey err: %v", err)
+		level.Error(s.logger).Log("what", "GetMasterKey", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to get master key"
 		return resp, nil
@@ -207,7 +202,7 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 	}
 
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmEncrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmEncrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to encrypt data key"
 		return resp, nil
@@ -220,7 +215,7 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -232,9 +227,9 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 	if err == nil {
 		dataKeyId, err := res.LastInsertId()
 		if err != nil {
-			s.logger.Printf("LastInsertId err: %v\n", err)
+			level.Error(s.logger).Log("what", "LastInsertId", "error", err)
 		} else {
-			s.logger.Printf("dataKeyId: %d", dataKeyId)
+			level.Debug(s.logger).Log("dataKeyId", dataKeyId)
 		}
 
 		resp.DataKeyId = dataKeyId
@@ -242,7 +237,7 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -251,7 +246,6 @@ func (s *safeService) CreateDataKey(ctx context.Context, req *pb.CreateDataKeyRe
 
 // delete a data key
 func (s *safeService) DeleteDataKey(ctx context.Context, req *pb.DeleteDataKeyRequest) (*pb.DeleteDataKeyResponse, error) {
-	s.logger.Printf("DeleteDataKey called for %s:%d\n", req.GetAccountName(), req.GetDataKeyId())
 	resp := &pb.DeleteDataKeyResponse{}
 
 	var err error
@@ -261,7 +255,7 @@ func (s *safeService) DeleteDataKey(ctx context.Context, req *pb.DeleteDataKeyRe
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -282,7 +276,7 @@ func (s *safeService) DeleteDataKey(ctx context.Context, req *pb.DeleteDataKeyRe
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -291,7 +285,6 @@ func (s *safeService) DeleteDataKey(ctx context.Context, req *pb.DeleteDataKeyRe
 
 // get a data key
 func (s *safeService) GetDataKey(ctx context.Context, req *pb.GetDataKeyRequest) (*pb.GetDataKeyResponse, error) {
-	s.logger.Printf("GetDataKey called for %s:%s\n", req.GetAccountName(), req.GetDataKeyName())
 	resp := &pb.GetDataKeyResponse{}
 	var err error
 
@@ -300,7 +293,7 @@ func (s *safeService) GetDataKey(ctx context.Context, req *pb.GetDataKeyRequest)
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -325,7 +318,7 @@ func (s *safeService) GetDataKey(ctx context.Context, req *pb.GetDataKeyRequest)
 		resp.ErrorMessage = "not found"
 		err = nil
 	} else {
-		s.logger.Printf("queryRow failed: %v\n", err)
+		level.Error(s.logger).Log("what", "QueryRow", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = err.Error()
 		err = nil
@@ -336,7 +329,6 @@ func (s *safeService) GetDataKey(ctx context.Context, req *pb.GetDataKeyRequest)
 
 // get a data key by id
 func (s *safeService) GetDataKeyById(ctx context.Context, req *pb.GetDataKeyByIdRequest) (*pb.GetDataKeyByIdResponse, error) {
-	s.logger.Printf("GetDataKeyById called for %s:%d\n", req.GetAccountName(), req.GetDataKeyId())
 	resp := &pb.GetDataKeyByIdResponse{}
 	var err error
 
@@ -345,7 +337,7 @@ func (s *safeService) GetDataKeyById(ctx context.Context, req *pb.GetDataKeyById
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -370,7 +362,7 @@ func (s *safeService) GetDataKeyById(ctx context.Context, req *pb.GetDataKeyById
 		resp.ErrorMessage = "not found"
 		err = nil
 	} else {
-		s.logger.Printf("queryRow failed: %v\n", err)
+		level.Error(s.logger).Log("what", "QueryRow", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = err.Error()
 		err = nil
@@ -381,7 +373,6 @@ func (s *safeService) GetDataKeyById(ctx context.Context, req *pb.GetDataKeyById
 
 // get a data keys by account_name
 func (s *safeService) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataKeysByAccountRequest) (*pb.GetDataKeysByAccountResponse, error) {
-	s.logger.Printf("GetDataKeysByAccount called for %s\n", req.GetAccountName())
 	resp := &pb.GetDataKeysByAccountResponse{}
 	var err error
 
@@ -390,7 +381,7 @@ func (s *safeService) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataK
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -401,7 +392,7 @@ func (s *safeService) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataK
 	rows, err := stmt.Query(req.GetAccountName())
 
 	if err != nil {
-		s.logger.Printf("query failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Query", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = err.Error()
 		return resp, nil
@@ -416,7 +407,7 @@ func (s *safeService) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataK
 			&datakey.AccountName, &datakey.DataKeyName, &datakey.DataKeyDescription, &datakey.DataKey)
 
 		if err != nil {
-			s.logger.Printf("query rows scan  failed: %v\n", err)
+			level.Error(s.logger).Log("what", "Scan", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = err.Error()
 			return resp, nil
@@ -433,7 +424,6 @@ func (s *safeService) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataK
 
 // get a decrypted version of data key
 func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryptedDataKeyRequest) (*pb.GetDecryptedDataKeyResponse, error) {
-	s.logger.Printf("GetDecryptedDataKey called for %s:%s\n", req.GetAccountName(), req.GetDataKeyName())
 	resp := &pb.GetDecryptedDataKeyResponse{}
 	var err error
 
@@ -441,7 +431,7 @@ func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryp
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -458,7 +448,7 @@ func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryp
 		resp.ErrorMessage = "not found"
 		return resp, nil
 	} else if err != nil {
-		s.logger.Printf("queryRow failed: %v\n", err)
+		level.Error(s.logger).Log("what", "QueryRow", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = err.Error()
 		return resp, nil
@@ -466,7 +456,7 @@ func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryp
 
 	mkey, err := s.GetMasterKey()
 	if err != nil {
-		s.logger.Printf("cryptutil.GetMasterKey err: %v", err)
+		level.Error(s.logger).Log("what", "GetMasterKey", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to get master key"
 		return resp, nil
@@ -478,7 +468,7 @@ func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryp
 		mkey[k] = 0
 	}
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt data key"
 		return resp, nil
@@ -493,7 +483,6 @@ func (s *safeService) GetDecryptedDataKey(ctx context.Context, req *pb.GetDecryp
 
 // create a new key node, encrypting value creating tree node if necessary
 func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRequest) (*pb.CreateKeyNodeResponse, error) {
-	s.logger.Printf("CreateKeyNode called for %s:%s\n", req.GetAccountName(), req.GetKeyName())
 	resp := &pb.CreateKeyNodeResponse{}
 	var err error
 
@@ -536,7 +525,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 
 		stmt1, err := s.db.Prepare(sqlstring1)
 		if err != nil {
-			s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+			level.Error(s.logger).Log("what", "Prepare", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = "db.Prepare failed"
 			return resp, nil
@@ -545,7 +534,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 		defer stmt1.Close()
 		err = stmt1.QueryRow(req.GetAccountName(), req.GetDataKeyId()).Scan(&binDataKey)
 		if err != nil {
-			s.logger.Printf("invalid data_key_id: %d\n", req.GetDataKeyId())
+			level.Error(s.logger).Log("what", "QueryRow", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = "invalid data_key_id"
 			return resp, nil
@@ -564,7 +553,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 			VALUES(NOW(), NOW(), NOW(), 0, 1, ?, ?)`
 		stmt3, err := s.db.Prepare(sqlstring3)
 		if err != nil {
-			s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+			level.Error(s.logger).Log("what", "Prepare", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = "db.Prepare failed"
 			return resp, nil
@@ -576,15 +565,15 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 		if err == nil {
 			treeNodeId, err = res.LastInsertId()
 			if err != nil {
-				s.logger.Printf("LastInsertId err: %v\n", err)
+				level.Error(s.logger).Log("what", "LastInsertId", "error", err)
 			} else {
-				s.logger.Printf("treeNodeId: %d", treeNodeId)
+				level.Debug(s.logger).Log("treeNodeId", treeNodeId)
 			}
 
 		} else {
 			resp.ErrorCode = 501
 			resp.ErrorMessage = err.Error()
-			s.logger.Printf("err: %v\n", err)
+			level.Error(s.logger).Log("what", "Exec", "error", err)
 			err = nil
 		}
 	}
@@ -598,7 +587,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 		// decrypt the data key
 		mkey, err := s.GetMasterKey()
 		if err != nil {
-			s.logger.Printf("cryptutil.GetMasterKey err: %v", err)
+			level.Error(s.logger).Log("what", "GetMasterKey", "error", err)
 			resp.ErrorCode = 512
 			resp.ErrorMessage = "unable to get master key"
 			return resp, nil
@@ -610,7 +599,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 			mkey[k] = 0
 		}
 		if err != nil {
-			s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+			level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 			resp.ErrorCode = 512
 			resp.ErrorMessage = "unable to decrypt data key"
 			return resp, nil
@@ -623,7 +612,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 			datakey[k] = 0
 		}
 		if err != nil {
-			s.logger.Printf("cryptutil.AesGcmEncrypt err: %v", err)
+			level.Error(s.logger).Log("what", "AesGcmEncrypt", "error", err)
 			resp.ErrorCode = 512
 			resp.ErrorMessage = "unable to encrypt key value"
 			return resp, nil
@@ -637,7 +626,7 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 
 	stmt4, err := s.db.Prepare(sqlstring4)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -650,13 +639,13 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 	if err == nil {
 		resp.KeyId, err = res.LastInsertId()
 		if err != nil {
-			s.logger.Printf("LastInsertId err: %v\n", err)
+			level.Error(s.logger).Log("what", "LastInsertId", "error", err)
 		}
 
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -665,7 +654,6 @@ func (s *safeService) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeRe
 
 // enable a key node
 func (s *safeService) EnableKeyNode(ctx context.Context, req *pb.EnableKeyNodeRequest) (*pb.EnableKeyNodeResponse, error) {
-	s.logger.Printf("EnableKeyNode called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.EnableKeyNodeResponse{}
 	var err error
 
@@ -682,7 +670,7 @@ func (s *safeService) EnableKeyNode(ctx context.Context, req *pb.EnableKeyNodeRe
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -703,7 +691,7 @@ func (s *safeService) EnableKeyNode(ctx context.Context, req *pb.EnableKeyNodeRe
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -712,7 +700,6 @@ func (s *safeService) EnableKeyNode(ctx context.Context, req *pb.EnableKeyNodeRe
 
 // disable a key node
 func (s *safeService) DisableKeyNode(ctx context.Context, req *pb.DisableKeyNodeRequest) (*pb.DisableKeyNodeResponse, error) {
-	s.logger.Printf("DisableKeyNode called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.DisableKeyNodeResponse{}
 	var err error
 
@@ -729,7 +716,7 @@ func (s *safeService) DisableKeyNode(ctx context.Context, req *pb.DisableKeyNode
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -750,7 +737,7 @@ func (s *safeService) DisableKeyNode(ctx context.Context, req *pb.DisableKeyNode
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -759,7 +746,6 @@ func (s *safeService) DisableKeyNode(ctx context.Context, req *pb.DisableKeyNode
 
 // re-encrypt a key node
 func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKeyNodeRequest) (*pb.ReEncryptKeyNodeResponse, error) {
-	s.logger.Printf("ReEncryptKeyNode called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.ReEncryptKeyNodeResponse{}
 	var err error
 
@@ -784,7 +770,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -823,7 +809,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	stmt2, err := s.db.Prepare(sqlstring2)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -850,7 +836,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	mkey, err := s.GetMasterKey()
 	if err != nil {
-		s.logger.Printf("cryptutil.GetMasterKey err: %v", err)
+		level.Error(s.logger).Log("what", "GetMasterKey", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to get master key"
 		return resp, nil
@@ -862,7 +848,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 		for k := 0; k < len(mkey); k++ {
 			mkey[k] = 0
 		}
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt data key"
 		return resp, nil
@@ -874,7 +860,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 		mkey[k] = 0
 	}
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt data key"
 		return resp, nil
@@ -882,7 +868,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	decryptedValue, err := cryptutil.AesGcmDecrypt(sourcekey, keyNode.GetKeyValue())
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt  key node"
 		return resp, nil
@@ -890,7 +876,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	reencryptedValue, err := cryptutil.AesGcmEncrypt(targetkey, decryptedValue)
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmEncrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmEncrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to encrypt key node"
 		return resp, nil
@@ -901,7 +887,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 	stmt3, err := s.db.Prepare(sqlstring3)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -922,7 +908,7 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -931,7 +917,6 @@ func (s *safeService) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKey
 
 // copy a  key node to new path
 func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeRequest) (*pb.CopyKeyNodeResponse, error) {
-	s.logger.Printf("CopyKeyNode called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.CopyKeyNodeResponse{}
 	var err error
 
@@ -964,7 +949,7 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1004,7 +989,7 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 			VALUES(NOW(), NOW(), NOW(), 0, 1, ?, ?)`
 		stmt3, err := s.db.Prepare(sqlstring3)
 		if err != nil {
-			s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+			level.Error(s.logger).Log("what", "Prepare", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = "db.Prepare failed"
 			return resp, nil
@@ -1016,15 +1001,15 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 		if err == nil {
 			treeNodeId, err = res.LastInsertId()
 			if err != nil {
-				s.logger.Printf("LastInsertId err: %v\n", err)
+				level.Error(s.logger).Log("what", "LastInsertId", "error", err)
 			} else {
-				s.logger.Printf("treeNodeId: %d", treeNodeId)
+				level.Debug(s.logger).Log("treeNodeId", treeNodeId)
 			}
 
 		} else {
 			resp.ErrorCode = 501
 			resp.ErrorMessage = err.Error()
-			s.logger.Printf("err: %v\n", err)
+			level.Error(s.logger).Log("what", "Exec", "error", err)
 			err = nil
 		}
 	}
@@ -1036,7 +1021,7 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 
 	stmt4, err := s.db.Prepare(sqlstring4)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1049,13 +1034,13 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 	if err == nil {
 		resp.CopiedKeyId, err = res.LastInsertId()
 		if err != nil {
-			s.logger.Printf("LastInsertId err: %v\n", err)
+			level.Error(s.logger).Log("what", "LastInsertId", "error", err)
 		}
 
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -1066,7 +1051,6 @@ func (s *safeService) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeReques
 
 // delete a  key node
 func (s *safeService) DeleteKeyNode(ctx context.Context, req *pb.DeleteKeyNodeRequest) (*pb.DeleteKeyNodeResponse, error) {
-	s.logger.Printf("DeleteKeyNode called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.DeleteKeyNodeResponse{}
 	var err error
 
@@ -1083,7 +1067,7 @@ func (s *safeService) DeleteKeyNode(ctx context.Context, req *pb.DeleteKeyNodeRe
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1104,7 +1088,7 @@ func (s *safeService) DeleteKeyNode(ctx context.Context, req *pb.DeleteKeyNodeRe
 	} else {
 		resp.ErrorCode = 501
 		resp.ErrorMessage = err.Error()
-		s.logger.Printf("err: %v\n", err)
+		level.Error(s.logger).Log("what", "Exec", "error", err)
 		err = nil
 	}
 
@@ -1113,7 +1097,6 @@ func (s *safeService) DeleteKeyNode(ctx context.Context, req *pb.DeleteKeyNodeRe
 
 // get a key node by node and path
 func (s *safeService) GetKeyNode(ctx context.Context, req *pb.GetKeyNodeRequest) (*pb.GetKeyNodeResponse, error) {
-	s.logger.Printf("GetKeyNode called for %s:%s:%s\n", req.GetAccountName(), req.GetNodePath(), req.GetKeyName())
 	resp := &pb.GetKeyNodeResponse{}
 
 	var err error
@@ -1158,7 +1141,7 @@ func (s *safeService) GetKeyNode(ctx context.Context, req *pb.GetKeyNodeRequest)
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1196,7 +1179,6 @@ func (s *safeService) GetKeyNode(ctx context.Context, req *pb.GetKeyNodeRequest)
 
 // get a key node by id
 func (s *safeService) GetKeyNodeById(ctx context.Context, req *pb.GetKeyNodeByIdRequest) (*pb.GetKeyNodeByIdResponse, error) {
-	s.logger.Printf("GetKeyNodeById called for %s:%d\n", req.GetAccountName(), req.GetKeyId())
 	resp := &pb.GetKeyNodeByIdResponse{}
 	var err error
 
@@ -1214,7 +1196,7 @@ func (s *safeService) GetKeyNodeById(ctx context.Context, req *pb.GetKeyNodeById
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1251,7 +1233,6 @@ func (s *safeService) GetKeyNodeById(ctx context.Context, req *pb.GetKeyNodeById
 
 // get a list of key nodes by path
 func (s *safeService) GetKeyNodeByPath(ctx context.Context, req *pb.GetKeyNodeByPathRequest) (*pb.GetKeyNodeByPathResponse, error) {
-	s.logger.Printf("GetKeyNodeByPath called for %s:%s\n", req.GetAccountName(), req.GetNodePath())
 	resp := &pb.GetKeyNodeByPathResponse{}
 	var err error
 
@@ -1297,7 +1278,7 @@ func (s *safeService) GetKeyNodeByPath(ctx context.Context, req *pb.GetKeyNodeBy
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1315,7 +1296,7 @@ func (s *safeService) GetKeyNodeByPath(ctx context.Context, req *pb.GetKeyNodeBy
 	}
 
 	if err != nil {
-		s.logger.Printf("query failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Query", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = err.Error()
 		return resp, nil
@@ -1333,7 +1314,7 @@ func (s *safeService) GetKeyNodeByPath(ctx context.Context, req *pb.GetKeyNodeBy
 			&keyNode.KeyName, &keyNode.KeyDescription, &keyNode.NodePath)
 
 		if err != nil {
-			s.logger.Printf("query rows scan  failed: %v\n", err)
+			level.Error(s.logger).Log("what", "Scan", "error", err)
 			resp.ErrorCode = 500
 			resp.ErrorMessage = err.Error()
 			return resp, nil
@@ -1349,7 +1330,6 @@ func (s *safeService) GetKeyNodeByPath(ctx context.Context, req *pb.GetKeyNodeBy
 
 // get a decrypted version of key node
 func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryptedKeyNodeRequest) (*pb.GetDecryptedKeyNodeResponse, error) {
-	s.logger.Printf("GetKeyNodeByPath called for %s:%s\n", req.GetAccountName(), req.GetNodePath())
 	resp := &pb.GetDecryptedKeyNodeResponse{}
 	var err error
 
@@ -1392,7 +1372,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 
 	stmt, err := s.db.Prepare(sqlstring)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1432,7 +1412,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 
 	stmt1, err := s.db.Prepare(sqlstring1)
 	if err != nil {
-		s.logger.Printf("db.Prepare sqlstring failed: %v\n", err)
+		level.Error(s.logger).Log("what", "Prepare", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "db.Prepare failed"
 		return resp, nil
@@ -1441,7 +1421,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 	defer stmt1.Close()
 	err = stmt1.QueryRow(req.GetAccountName(), dataKeyId).Scan(&binDataKey)
 	if err != nil {
-		s.logger.Printf("invalid data_key_id: %d\n", dataKeyId)
+		level.Error(s.logger).Log("what", "QueryRow", "error", err)
 		resp.ErrorCode = 500
 		resp.ErrorMessage = "invalid data_key_id"
 		return resp, nil
@@ -1449,7 +1429,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 
 	mkey, err := s.GetMasterKey()
 	if err != nil {
-		s.logger.Printf("cryptutil.GetMasterKey err: %v", err)
+		level.Error(s.logger).Log("what", "GetMasterKey", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to get master key"
 		return resp, nil
@@ -1461,7 +1441,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 		mkey[k] = 0
 	}
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt data key"
 		return resp, nil
@@ -1469,7 +1449,7 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 
 	plaintext, err := cryptutil.AesGcmDecrypt(datakey, encryptedValue)
 	if err != nil {
-		s.logger.Printf("cryptutil.AesGcmDecrypt err: %v", err)
+		level.Error(s.logger).Log("what", "AesGcmDecrypt", "error", err)
 		resp.ErrorCode = 512
 		resp.ErrorMessage = "unable to decrypt key node"
 		return resp, nil
@@ -1482,7 +1462,6 @@ func (s *safeService) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecryp
 
 // get current server version and uptime - health check
 func (s *safeService) GetServerVersion(ctx context.Context, req *pb.GetServerVersionRequest) (*pb.GetServerVersionResponse, error) {
-	s.logger.Printf("GetServerVersion called\n")
 	resp := &pb.GetServerVersionResponse{}
 
 	currentSecs := time.Now().Unix()

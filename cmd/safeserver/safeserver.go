@@ -15,7 +15,9 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -25,7 +27,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/kylelemons/go-gypsy/yaml"
 
@@ -43,7 +44,8 @@ func main() {
 
 	config, err := yaml.ReadFile(configPath)
 	if err != nil {
-		log.Fatalf("configuration not found: " + configPath)
+		fmt.Printf("configuration not found: " + configPath)
+		os.Exit(1)
 	}
 
 	log_file, _ := config.Get("log_file")
@@ -58,21 +60,28 @@ func main() {
 	min_secret_shares, _ := config.GetInt("min_secret_shares")
 	secret_shares, _ := config.GetInt("secret_shares")
 
-	fmt.Printf("log_file: %s\n", log_file)
-	fmt.Printf("cert_file: %s\n", cert_file)
-	fmt.Printf("key_file: %s\n", key_file)
-	fmt.Printf("tls: %t\n", tls)
-	fmt.Printf("port: %d\n", port)
-	fmt.Printf("db_user: %s\n", db_user)
-	fmt.Printf("db_transport: %s\n", db_transport)
-	fmt.Printf("jwt_pub_file: %s\n", jwt_pub_file)
-	fmt.Printf("min_secret_shares: %d\n", min_secret_shares)
-	fmt.Printf("secret_shares: %d\n", secret_shares)
+	var logWriter io.Writer
 
-	logfile, _ := os.Create(log_file)
-	defer logfile.Close()
+	if log_file == "" {
+		logWriter = os.Stderr
+	} else {
+		logfile, _ := os.OpenFile(log_file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		defer logfile.Close()
+		logWriter = logfile
+	}
+	logger := log.NewLogfmtLogger(log.NewSyncWriter(logWriter))
+	logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.DefaultCaller)
 
-	logger := log.New(logfile, "api_safebox ", log.LstdFlags|log.Lshortfile)
+	level.Info(logger).Log("log_file", log_file)
+	level.Info(logger).Log("cert_file", cert_file)
+	level.Info(logger).Log("key_file", key_file)
+	level.Info(logger).Log("tls", tls)
+	level.Info(logger).Log("port", port)
+	level.Info(logger).Log("db_user", db_user)
+	level.Info(logger).Log("db_transport", db_transport)
+	level.Info(logger).Log("jwt_pub_file", jwt_pub_file)
+	level.Info(logger).Log("min_secret_shares", min_secret_shares)
+	level.Info(logger).Log("secret_shares", secret_shares)
 
 	if port == 0 {
 		port = 50052
@@ -83,14 +92,15 @@ func main() {
 
 	lis, err := net.Listen("tcp", listen_port)
 	if err != nil {
-		logger.Fatalf("failed to listen: %v", err)
+		level.Error(logger).Log("what", "net.listen", "error", err)
 	}
 
 	var opts []grpc.ServerOption
 	if tls {
 		creds, err := credentials.NewServerTLSFromFile(cert_file, key_file)
 		if err != nil {
-			grpclog.Fatalf("Failed to generate credentials %v", err)
+			level.Error(logger).Log("what", "Failed to generate credentials", "error", err)
+			os.Exit(1)
 		}
 		opts = []grpc.ServerOption{grpc.Creds(creds)}
 	}
@@ -101,7 +111,7 @@ func main() {
 
 	sqlDb, err := SetupDatabaseConnections(db_user, db_pwd, db_transport)
 	if err != nil {
-		logger.Fatalf("failed to get database connection: %v", err)
+		level.Error(logger).Log("what", "SetupDatabaseConnections", "error", err)
 	}
 
 	safeService.SetLogger(logger)
@@ -117,21 +127,25 @@ func main() {
 	safeAuth.SetDatabaseConnection(sqlDb)
 	err = safeAuth.NewApiServer(s)
 	if err != nil {
-		logger.Fatalf("failed to create api server: %v", err)
+		level.Error(logger).Log("what", "NewApiServer", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Println("starting server ...")
+	level.Info(logger).Log("msg", "starting grpc server")
 
-	s.Serve(lis)
+	err = s.Serve(lis)
+	if err != nil {
+		level.Error(logger).Log("what", "Serve", "error", err)
+	}
 
-	logger.Println("shutting down server ...")
+	level.Info(logger).Log("msg", "shutting down grpc server")
 
 }
 
 func SetupDatabaseConnections(db_user string, db_pwd string, db_transport string) (*sql.DB, error) {
 	var sqlDb *sql.DB
 	endpoint := db_user + ":" + db_pwd + "@" + db_transport + "/safebox"
-	fmt.Printf("mysql endpoint is %s\n", endpoint)
+
 	var err error
 	sqlDb, err = sql.Open("mysql", endpoint)
 	if err == nil {
@@ -140,12 +154,6 @@ func SetupDatabaseConnections(db_user string, db_pwd string, db_transport string
 			sqlDb = nil
 		}
 
-	}
-
-	if err == nil {
-		fmt.Println("database connection established")
-	} else {
-		fmt.Printf("unable to establish database connection %v\n", err)
 	}
 
 	return sqlDb, err
