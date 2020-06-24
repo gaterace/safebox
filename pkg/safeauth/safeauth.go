@@ -1,4 +1,4 @@
-// Copyright 2019 Demian Harvill
+// Copyright 2019-2020 Demian Harvill
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,9 +19,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"time"
+
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
-	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
@@ -98,7 +99,6 @@ func (s *SafeAuth) GetJwtFromContext(ctx context.Context) (*map[string]interface
 	}
 
 	tokenString := tokens[0]
-
 
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
@@ -205,7 +205,6 @@ func (s *SafeAuth) ClearSharedSecrets(ctx context.Context, req *pb.ClearSharedSe
 	duration := time.Now().UnixNano() - start
 	level.Info(s.logger).Log("endpoint", "ClearSharedSecrets",
 		"errcode", resp.GetErrorCode(), "duration", duration)
-
 
 	return resp, err
 }
@@ -331,7 +330,6 @@ func (s *SafeAuth) GetDataKeyById(ctx context.Context, req *pb.GetDataKeyByIdReq
 		"datakeyid", req.GetDataKeyId(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
 
-
 	return resp, err
 }
 
@@ -362,7 +360,6 @@ func (s *SafeAuth) GetDataKeysByAccount(ctx context.Context, req *pb.GetDataKeys
 	level.Info(s.logger).Log("endpoint", "GetDataKeysByAccount",
 		"account", req.GetAccountName(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
-
 
 	return resp, err
 }
@@ -426,7 +423,6 @@ func (s *SafeAuth) CreateKeyNode(ctx context.Context, req *pb.CreateKeyNodeReque
 		"path", req.GetNodePath(),
 		"key", req.GetKeyName(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
-
 
 	return resp, err
 }
@@ -521,7 +517,6 @@ func (s *SafeAuth) ReEncryptKeyNode(ctx context.Context, req *pb.ReEncryptKeyNod
 		"keyid", req.GetKeyId(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
 
-
 	return resp, err
 }
 
@@ -537,7 +532,7 @@ func (s *SafeAuth) CopyKeyNode(ctx context.Context, req *pb.CopyKeyNodeRequest) 
 		safebox := GetStringFromClaims(claims, "safebox")
 		if (safebox == "admin") || (safebox == "datakeyrw") || (safebox == "keynoderw") {
 			req.AccountName = GetStringFromClaims(claims, "actname")
-			resp, err =  s.safeService.CopyKeyNode(ctx, req)
+			resp, err = s.safeService.CopyKeyNode(ctx, req)
 		}
 	} else {
 		if err.Error() == tokenExpiredMatch {
@@ -615,7 +610,6 @@ func (s *SafeAuth) GetKeyNode(ctx context.Context, req *pb.GetKeyNodeRequest) (*
 		"path", req.GetNodePath(),
 		"key", req.GetKeyName(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
-
 
 	return resp, err
 }
@@ -710,7 +704,6 @@ func (s *SafeAuth) GetDecryptedKeyNode(ctx context.Context, req *pb.GetDecrypted
 		"path", req.GetNodePath(),
 		"key", req.GetKeyName(),
 		"errcode", resp.GetErrorCode(), "duration", duration)
-
 
 	return resp, err
 }
