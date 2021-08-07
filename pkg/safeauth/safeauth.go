@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Demian Harvill
+// Copyright 2019-2021 Demian Harvill
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -29,9 +29,9 @@ import (
 
 	"database/sql"
 
-	"github.com/dgrijalva/jwt-go"
 	pb "github.com/gaterace/safebox/pkg/mservicesafebox"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/golang-jwt/jwt"
 )
 
 const (
