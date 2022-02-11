@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Demian Harvill
+// Copyright 2019-2022 Demian Harvill
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -47,6 +47,7 @@ var accountValidator = regexp.MustCompile("^[a-z]{4,10}$")
 var pathValidator = regexp.MustCompile("^([a-z]{1,20}/)+$")
 
 type safeService struct {
+	pb.UnimplementedMServiceSafeboxServer
 	logger          log.Logger
 	db              *sql.DB
 	minSecretShares int
