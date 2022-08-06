@@ -23,6 +23,8 @@ safebox.sublime-*
 
 docker/safeclient
 cmd/safeclient/safeclient
+cmd/safeclient/safebox.config
 cmd/safeserver/safeserver
 cmd/safeserver/safeserver_arm
+cmd/safeserver/safeserver_arm64
 cmd/sssa/sssa
